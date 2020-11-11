@@ -23,6 +23,36 @@ The "Transformer" name and network architecture were introduced in the paper
 from trax import layers as tl
 
 
+class LayerDuplicate(tl.Layer):
+  """Creates a duplicate of a layer which shares weights with the original.
+
+  The original layer must be used in a model as well for proper initialization.
+  """
+
+  def __init__(self, original, use_own_rng=False, update_state=False):
+    if isinstance(original, (list, tuple)):
+      # Automatic conversion to Serial should work here fine, but I am not
+      # completely sure about that weights/state/rng will be shared properly.
+      raise ValueError('Input to LayerDuplicate must be a Layer, not a list. '
+                       'Convert to Serial before passing.')
+    #   original = tl.Serial(original)
+    original_name = original.name
+    super().__init__(name=f'DuplicateOf_{original_name}',
+                     n_in=original.n_in, n_out=original.n_out)
+    self._original = original
+    self._use_own_rng = use_own_rng
+    self._update_state = update_state
+
+  def forward(self, x):
+    rng = self.rng if self._use_own_rng else self._original.rng
+    y, new_state = self._original.pure_fn(
+        x=x, weights=self._original.weights, state=self._original.state,
+        rng=rng, use_cache=False)
+    if self._update_state:
+      self._original.state = new_state
+    return y
+
+
 def _FeedForward(d_model, d_ff, dropout, activation, act_dropout,
                  use_bfloat16, mode):
   """Feed-forward block with layer normalization at start."""
@@ -362,6 +392,7 @@ def ConfigurableTransformerLM(vocab_size,
                               d_model=512,
                               d_ff=2048,
                               n_layers=6,
+                              block_duplicates=0,
                               n_heads=8,
                               max_len=2048,
                               dropout=0.1,
@@ -402,6 +433,7 @@ def ConfigurableTransformerLM(vocab_size,
       block.
     n_layers: Number of encoder blocks. Each block includes attention, dropout,
       residual, feed-forward (`Dense`), and activation layers.
+    block_duplicates: Number of times a block should be duplicated.
     n_heads: Number of attention heads.
     max_len: Maximum symbol length for positional encoding.
     dropout: Stochastic rate (probability) for dropping an activation value when
@@ -440,15 +472,16 @@ def ConfigurableTransformerLM(vocab_size,
           mode, dropout, max_len, axial_pos_shape, d_axial_pos_embs)
   ]
 
-  # pylint: disable=g-complex-comprehension
-  decoder_blocks = [
-      DecoderBlock(d_model, d_ff, n_heads, dropout, dropout_shared_axes, mode,
-                   ff_activation, ff_dropout, ff_chunk_size, ff_use_sru,
-                   ff_sparsity, ff_sparsity_type,
-                   attention_chunk_size, attention_type)
-      for i in range(n_layers)
-  ]
-  # pylint: enable=g-complex-comprehension
+  decoder_blocks = []
+  for _ in range(n_layers):
+    decoder_block = tl.Serial(DecoderBlock(
+        d_model, d_ff, n_heads, dropout, dropout_shared_axes, mode,
+        ff_activation, ff_dropout, ff_chunk_size, ff_use_sru, ff_sparsity,
+        ff_sparsity_type, attention_chunk_size, attention_type))
+    decoder_blocks.append(decoder_block)
+    for _ in range(block_duplicates):
+      duplicate = LayerDuplicate(decoder_block)
+      decoder_blocks.append(duplicate)
 
   # Assemble and return the model.
   return tl.Serial(              # tokens (or chunked tuple of tokens)

@@ -28,12 +28,37 @@ from trax import shapes
 from trax.models.research import configurable_transformer as ct
 
 
+class LayerDuplicateTest(parameterized.TestCase):
+
+  def test_duplicate_dense(self):
+    layer = tl.Dense(8)
+    layer_duplicate = ct.LayerDuplicate(layer)
+    model = tl.Serial(tl.Branch(layer,
+                                layer_duplicate),
+                      tl.SubtractTop())
+    x = np.ones((3, 5))
+    _, _ = model.init(shapes.signature(x))
+    y = model(x)
+    self.assertEqual(y.shape, (3, 8))
+    self.assertAlmostEqual(np.sum(y), 0.0)
+
+
 class ConfigurableTransformerTest(parameterized.TestCase):
 
   def test_transformer_lm_forward_shape(self):
     vocab_size = 16
     model = ct.ConfigurableTransformerLM(
         vocab_size, d_model=32, d_ff=64, n_layers=2, n_heads=2)
+    x = np.ones((3, 5)).astype(np.int32)
+    _, _ = model.init(shapes.signature(x))
+    y = model(x)
+    self.assertEqual(y.shape, (3, 5, vocab_size))
+
+  def test_transformer_duplicates_lm_forward_shape(self):
+    vocab_size = 16
+    model = ct.ConfigurableTransformerLM(
+        vocab_size, block_duplicates=2, d_model=32, d_ff=64, n_layers=2,
+        n_heads=2)
     x = np.ones((3, 5)).astype(np.int32)
     _, _ = model.init(shapes.signature(x))
     y = model(x)
