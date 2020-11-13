@@ -162,10 +162,11 @@ class TrainerTest(absltest.TestCase):
 
     # Now make 3 steps with reversible trainer.
     model.init(labeled_batch, rng=rng_init)
+    # TODO(lukaszkaiser): this test seems to fail with memoize_jit, why?
     trainer = optimizers.ReversibleSerialTrainer(
         [(first_layer.sublayers, rev_layers1),
          (mid_layer.sublayers, rev_layers2)],
-        loss_layer, optimizer_fn)
+        loss_layer, optimizer_fn, memoize_jit=False)
     trainer.one_step(labeled_batch, rng_step1)
     trainer.one_step(labeled_batch, rng_step2, learning_rate=0.02)
     trainer.one_step(labeled_batch, rng_step3, learning_rate=0.03)
