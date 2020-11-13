@@ -560,7 +560,7 @@ def train(output_dir,
     if callable(inputs):  # If we pass a function, e.g., through gin, call it.
       inputs = inputs()
     opt = optimizer if use_memory_efficient_trainer else optimizer()
-    train_task = training.TrainTask(inputs.train_stream(n_devices),
+    train_task = training.TrainTask(inputs.train_stream(n_devices)(),
                                     loss_layer=loss_fn,
                                     optimizer=opt,
                                     lr_schedule=lr_schedule_fn(),
@@ -569,7 +569,7 @@ def train(output_dir,
     # Prepare the evaluation.
     metrics_dict = metrics if metrics is not None else _DEFAULT_METRICS
     names, metrics = zip(*metrics_dict.items())
-    eval_task = training.EvalTask(inputs.eval_stream(n_devices),
+    eval_task = training.EvalTask(inputs.eval_stream(n_devices)(),
                                   metrics,
                                   metric_names=names,
                                   n_eval_batches=eval_steps)

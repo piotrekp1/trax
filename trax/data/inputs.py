@@ -582,7 +582,7 @@ class Inputs(object):
     self._train_eval_stream = train_eval_stream or self._train_stream
 
     # Peek into the train stream to get an example shape.
-    example_train_batch = next(train_stream(1))
+    example_train_batch = next(train_stream(1)())
     self._input_shape = tuple(example_train_batch[0].shape)[1:]
     self._input_dtype = example_train_batch[0].dtype
     self._target_shape = tuple(example_train_batch[-1].shape)[1:]
