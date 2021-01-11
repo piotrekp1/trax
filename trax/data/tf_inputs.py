@@ -1277,6 +1277,27 @@ def LoadJSONRows(dir_path=gin.REQUIRED, fname=gin.REQUIRED):
         yield el
   return iterator
 
+def LoadMATHQA(dir_path=gin.REQUIRED, fname=gin.REQUIRED):
+  path = os.path.join(dir_path, fname)
+  with open(path, 'r') as f:
+    # loads everything into memory
+    ds = json.load(f)
+
+  def iterator(generator=None):
+    while True:
+      for el in ds:
+        yield el
+  return iterator
+
+def MathQAExtendedQuestion():
+  def mathqa_extended_question(ds=None):
+    for datapoint in ds:
+      ext_question = datapoint['Problem'] + ' ; ' + ' ; '.join(datapoint['options'])
+      correct_answer_label = ord(datapoint['correct']) - ord('A')
+      yield ext_question, datapoint['Rationale'], correct_answer_label
+
+  return mathqa_extended_question()
+
 
 def AQuAExtendedQuestion():
   """
